@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google广告数据</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-900 text-white">
+    <div class="container mx-auto px-4 py-8">
+        <!-- 顶部导航 -->
+        <nav class="flex justify-between items-center mb-8">
+            <h1 class="text-2xl font-bold text-yellow-500">Google广告数据</h1>
+        </nav>
+
+        <!-- 时间筛选 -->
+        <div class="flex justify-between items-center mb-8">
+            <div class="flex space-x-4">
+                <button class="bg-gray-800 px-4 py-2 rounded time-filter" data-days="prev-day">前日</button>
+                <button class="bg-gray-800 px-4 py-2 rounded time-filter" data-days="1">昨日</button>
+                <button class="bg-gray-800 px-4 py-2 rounded time-filter" data-days="30">最近30天</button>
+                <button class="bg-gray-800 px-4 py-2 rounded time-filter" data-days="prev-month">上月</button>
+                <button class="bg-gray-800 px-4 py-2 rounded time-filter" data-days="this-month">本月</button>
+            </div>
+            <div class="flex items-center space-x-2">
+                <input type="date" id="startDate" class="bg-gray-800 px-4 py-2 rounded">
+                <span>至</span>
+                <input type="date" id="endDate" class="bg-gray-800 px-4 py-2 rounded">
+                <button class="bg-blue-600 px-4 py-2 rounded search-button">查询</button>
+            </div>
+        </div>
+
+        <!-- 账户总览区域 -->
+        <div id="accountOverview" class="mb-12">
+            <h2 class="text-xl font-bold mb-4 text-blue-400">账户总览</h2>
+            <!-- 数据卡片网格 -->
+            <div class="grid grid-cols-3 gap-6 mb-8">
+                <!-- 总花费 -->
+                <div class="bg-gray-800 p-6 rounded-lg">
+                    <h3 class="text-yellow-500 text-sm mb-2">总花费 ($)</h3>
+                    <p class="text-3xl font-bold" id="total-cost">{{ total_cost|default('--') }}</p>
+                </div>
+                <!-- 链接点击 -->
+                <div class="bg-gray-800 p-6 rounded-lg">
+                    <h3 class="text-yellow-500 text-sm mb-2">链接点击</h3>
+                    <p class="text-3xl font-bold" id="total-clicks">{{ total_clicks|default('--') }}</p>
+                </div>
+                <!-- 总展现量 -->
+                <div class="bg-gray-800 p-6 rounded-lg">
+                    <h3 class="text-yellow-500 text-sm mb-2">总展现量</h3>
+                    <p class="text-3xl font-bold" id="total-impressions">{{ total_impressions|default('--') }}</p>
+                </div>
+                <!-- 点击率 -->
+                <div class="bg-gray-800 p-6 rounded-lg">
+                    <h3 class="text-yellow-500 text-sm mb-2">点击率 (%)</h3>
+                    <p class="text-3xl font-bold" id="ctr">{{ ctr|default('--') }}</p>
+                </div>
+                <!-- CPC -->
+                <div class="bg-gray-800 p-6 rounded-lg">
+                    <h3 class="text-yellow-500 text-sm mb-2">CPC ($)</h3>
+                    <p class="text-3xl font-bold" id="cpc">{{ cpc|default('--') }}</p>
+                </div>
+                <!-- 转化数 -->
+                <div class="bg-gray-800 p-6 rounded-lg">
+                    <h3 class="text-yellow-500 text-sm mb-2">转化数</h3>
+                    <p class="text-3xl font-bold" id="conversions">{{ conversions|default('--') }}</p>
+                </div>
+            </div>
+
+            <!-- 图表区域 -->
+            <div class="grid grid-cols-2 gap-6">
+                <!-- 花费与转化趋势 -->
+                <div class="bg-gray-800 p-6 rounded-lg">
+                    <h3 class="text-lg font-semibold mb-4">花费与转化趋势</h3>
+                    <div class="h-80 relative">
+                        <canvas id="cost-conversion-chart"></canvas>
+                    </div>
+                </div>
+                <!-- 点击和展示趋势 -->
+                <div class="bg-gray-800 p-6 rounded-lg">
+                    <h3 class="text-lg font-semibold mb-4">点击和展示趋势</h3>
+                    <div class="h-80 relative">
+                        <canvas id="clicks-impressions-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 广告系列详情 -->
+        <div id="campaignDetails">
+            <h2 class="text-xl font-bold mb-4 text-blue-400">活跃广告系列详情</h2>
+            <div class="bg-gray-800 rounded-lg p-6">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead>
+                            <tr class="border-b border-gray-700">
+                                <th class="text-left py-3 px-4">广告系列名称</th>
+                                <th class="text-right py-3 px-4">状态</th>
+                                <th class="text-right py-3 px-4">花费 ($)</th>
+                                <th class="text-right py-3 px-4">点击</th>
+                                <th class="text-right py-3 px-4">展示</th>
+                                <th class="text-right py-3 px-4">点击率 (%)</th>
+                                <th class="text-right py-3 px-4">CPC ($)</th>
+                                <th class="text-right py-3 px-4">转化数</th>
+                            </tr>
+                        </thead>
+                        <tbody id="campaignTableBody">
+                            <!-- 广告系列数据将通过JavaScript动态填充 -->
+                            <tr class="text-center">
+                                <td colspan="8" class="py-8 text-gray-400">加载中...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载必要的JS -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html> 

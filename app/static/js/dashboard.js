@@ -1,0 +1,502 @@
+// 初始化图表
+let costConversionChart = null;
+let clicksImpressionsChart = null;
+
+// 当前视图状态
+let isShowingCampaigns = false;
+
+// 当前日期范围
+let currentDateRange = {
+    startDate: null,
+    endDate: null
+};
+
+// 显示加载状态
+function showLoading(id, isLoading = true) {
+    const element = document.getElementById(id);
+    if (element) {
+        element.innerHTML = isLoading ? '加载中...' : '--';
+    }
+}
+
+// 显示错误状态
+function showError(id, message = '加载失败') {
+    const element = document.getElementById(id);
+    if (element) {
+        element.innerHTML = message;
+        element.classList.add('text-red-500');
+    }
+}
+
+// 更新数据卡片
+function updateMetrics(startDate, endDate) {
+    // 显示所有指标为加载中状态
+    showLoading('total-cost');
+    showLoading('total-clicks');
+    showLoading('total-impressions');
+    showLoading('ctr');
+    showLoading('cpc');
+    showLoading('conversions');
+    
+    console.log(`正在获取指标数据: ${startDate} 至 ${endDate}`);
+    
+    const params = new URLSearchParams({
+        start_date: startDate,
+        end_date: endDate
+    });
+
+    fetch(`/api/metrics?${params}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`API请求失败: ${response.status} ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('获取到指标数据:', data);
+            
+            if (data.error) {
+                console.error('API返回错误:', data.error);
+                showError('total-cost', '获取失败');
+                showError('total-clicks', '获取失败');
+                showError('total-impressions', '获取失败');
+                showError('ctr', '获取失败');
+                showError('cpc', '获取失败');
+                showError('conversions', '获取失败');
+                return;
+            }
+
+            // 更新数据卡片
+            document.getElementById('total-cost').textContent = data.total_cost.toLocaleString();
+            document.getElementById('total-clicks').textContent = data.total_clicks.toLocaleString();
+            document.getElementById('total-impressions').textContent = data.total_impressions.toLocaleString();
+            document.getElementById('ctr').textContent = data.ctr.toFixed(2);
+            document.getElementById('cpc').textContent = data.cpc.toFixed(2);
+            document.getElementById('conversions').textContent = data.conversions.toLocaleString();
+
+            // 更新图表
+            updateCharts(data.daily_metrics);
+        })
+        .catch(error => {
+            console.error('获取指标数据失败:', error);
+            // 显示错误状态
+            showError('total-cost', '获取失败');
+            showError('total-clicks', '获取失败');
+            showError('total-impressions', '获取失败');
+            showError('ctr', '获取失败');
+            showError('cpc', '获取失败');
+            showError('conversions', '获取失败');
+        });
+}
+
+// 获取状态文本
+function getStatusText(status) {
+    // 转换为字符串以便于比较
+    status = String(status);
+    
+    // 谷歌广告API返回的状态值可能是数字、枚举值或字符串
+    if (status === 'ENABLED' || status === '2' || status === '2.0') {
+        return '活跃';
+    } else if (status === 'PAUSED' || status === '3' || status === '3.0') {
+        return '暂停';
+    } else if (status === 'REMOVED' || status === '4' || status === '4.0') {
+        return '已删除';
+    } else {
+        // 打印未知状态进行调试
+        console.log('未知广告状态值:', status);
+        return status;
+    }
+}
+
+// 判断广告系列是否活跃
+function isActive(status) {
+    // 转换为字符串以便于比较
+    status = String(status);
+    return status === 'ENABLED' || status === '2' || status === '2.0';
+}
+
+// 更新广告系列详情
+function updateCampaignDetails(startDate, endDate) {
+    console.log(`正在获取广告系列数据: ${startDate} 至 ${endDate}`);
+    
+    // 显示加载中状态
+    const tableBody = document.getElementById('campaignTableBody');
+    tableBody.innerHTML = `<tr class="text-center"><td colspan="8" class="py-8 text-gray-400">加载中...</td></tr>`;
+    
+    const params = new URLSearchParams({
+        start_date: startDate,
+        end_date: endDate
+    });
+
+    fetch(`/api/campaigns?${params}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`API请求失败: ${response.status} ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(campaigns => {
+            console.log(`获取到 ${campaigns.length} 个广告系列数据`);
+            tableBody.innerHTML = '';
+
+            // 过滤出活跃的广告系列
+            const activeCampaigns = campaigns.filter(campaign => isActive(campaign.status));
+            console.log(`活跃广告系列: ${activeCampaigns.length} 个`);
+
+            if (activeCampaigns.length === 0) {
+                const row = document.createElement('tr');
+                row.className = 'text-center';
+                row.innerHTML = `<td colspan="8" class="py-8 text-gray-400">暂无活跃广告系列数据</td>`;
+                tableBody.appendChild(row);
+                return;
+            }
+
+            activeCampaigns.forEach(campaign => {
+                const row = document.createElement('tr');
+                row.className = 'border-b border-gray-700';
+                
+                // 获取状态文本
+                const statusText = getStatusText(campaign.status);
+                
+                row.innerHTML = `
+                    <td class="py-3 px-4">${campaign.name}</td>
+                    <td class="text-right py-3 px-4 text-green-500">
+                        ${statusText}
+                    </td>
+                    <td class="text-right py-3 px-4">${campaign.cost.toLocaleString()}</td>
+                    <td class="text-right py-3 px-4">${campaign.clicks.toLocaleString()}</td>
+                    <td class="text-right py-3 px-4">${campaign.impressions.toLocaleString()}</td>
+                    <td class="text-right py-3 px-4">${campaign.ctr.toFixed(2)}</td>
+                    <td class="text-right py-3 px-4">${campaign.cpc.toFixed(2)}</td>
+                    <td class="text-right py-3 px-4">${campaign.conversions.toLocaleString()}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        })
+        .catch(error => {
+            console.error('获取广告系列数据失败:', error);
+            tableBody.innerHTML = `<tr class="text-center"><td colspan="8" class="py-8 text-red-500">加载数据失败，请刷新页面重试 (${error.message})</td></tr>`;
+        });
+}
+
+// 初始化图表
+function initCharts() {
+    try {
+        console.log('初始化图表...');
+        // 花费与转化趋势图表（组合图表：花费用柱状图，转化用折线图）
+        const costConversionCtx = document.getElementById('cost-conversion-chart').getContext('2d');
+        costConversionChart = new Chart(costConversionCtx, {
+            type: 'bar', // 基础类型为柱状图
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: '花费',
+                        backgroundColor: 'rgba(76, 175, 80, 0.5)',
+                        borderColor: '#4CAF50',
+                        borderWidth: 1,
+                        data: [],
+                        order: 1
+                    },
+                    {
+                        label: '转化',
+                        type: 'line', // 显式设置为折线图类型
+                        borderColor: '#2196F3',
+                        backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#2196F3',
+                        fill: false,
+                        tension: 0.4, // 添加弧度使线条更平滑
+                        data: [],
+                        order: 0, // 使折线显示在柱状图上方
+                        yAxisID: 'y1' // 使用第二个Y轴
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            boxWidth: 10
+                        }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: '花费 ($)',
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    },
+                    y1: {
+                        beginAtZero: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: '转化次数',
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        },
+                        grid: {
+                            drawOnChartArea: false // 不显示第二个Y轴的网格线
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    }
+                }
+            }
+        });
+
+        // 点击和展示趋势图表（面积图与折线图组合）
+        const clicksImpressionsCtx = document.getElementById('clicks-impressions-chart').getContext('2d');
+        clicksImpressionsChart = new Chart(clicksImpressionsCtx, {
+            type: 'line', // 基础类型为折线图
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: '点击',
+                        backgroundColor: 'rgba(255, 193, 7, 0.2)',
+                        borderColor: '#FFC107',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#FFC107',
+                        tension: 0.4,
+                        fill: true, // 填充区域，形成面积图效果
+                        data: [],
+                        order: 1
+                    },
+                    {
+                        label: '展示',
+                        backgroundColor: 'rgba(156, 39, 176, 0.1)',
+                        borderColor: '#9C27B0',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#9C27B0',
+                        tension: 0.4,
+                        fill: false, // 不填充
+                        data: [],
+                        order: 0,
+                        yAxisID: 'y1' // 使用第二个Y轴
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            boxWidth: 10
+                        }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: '点击数',
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    },
+                    y1: {
+                        beginAtZero: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: '展示数',
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        },
+                        grid: {
+                            drawOnChartArea: false // 不显示第二个Y轴的网格线
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    }
+                }
+            }
+        });
+        console.log('图表初始化成功');
+    } catch (error) {
+        console.error('图表初始化失败:', error);
+    }
+}
+
+// 更新图表数据
+function updateCharts(dailyMetrics) {
+    try {
+        console.log(`更新图表数据，共 ${dailyMetrics.length} 天`);
+        const labels = dailyMetrics.map(d => d.date);
+        
+        costConversionChart.data.labels = labels;
+        costConversionChart.data.datasets[0].data = dailyMetrics.map(d => d.cost);
+        costConversionChart.data.datasets[1].data = dailyMetrics.map(d => d.conversions);
+        costConversionChart.update();
+
+        clicksImpressionsChart.data.labels = labels;
+        clicksImpressionsChart.data.datasets[0].data = dailyMetrics.map(d => d.clicks);
+        clicksImpressionsChart.data.datasets[1].data = dailyMetrics.map(d => d.impressions);
+        clicksImpressionsChart.update();
+        console.log('图表更新成功');
+    } catch (error) {
+        console.error('更新图表失败:', error);
+    }
+}
+
+// 设置日期范围
+function setDateRange(days) {
+    console.log(`设置日期范围: ${days}`);
+    const now = new Date(); // 当前日期
+    let startDate, endDate;
+
+    if (days === 'prev-month') {
+        // 上月：从上月第一天到上月最后一天
+        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        endDate = new Date(now.getFullYear(), now.getMonth(), 0); // 上月最后一天
+    } else if (days === 'this-month') {
+        // 本月：从本月第一天到今天
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        endDate = new Date(now);
+    } else if (days === 1) {
+        // 昨日：昨天的00:00到昨天的23:59
+        endDate = new Date(now);
+        endDate.setDate(endDate.getDate() - 1);
+        startDate = new Date(endDate); // 复制昨天的日期
+    } else if (days === 'prev-day') {
+        // 前日：前天的00:00到前天的23:59
+        const twoDaysAgo = new Date(now);
+        twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+        startDate = new Date(twoDaysAgo);
+        endDate = new Date(twoDaysAgo);
+        console.log(`前日日期设置为: ${formatDate(startDate)}`);
+    } else {
+        // 最近n天：从n天前到昨天
+        endDate = new Date(now);
+        endDate.setDate(endDate.getDate() - 1); // 截止到昨天
+        startDate = new Date(now);
+        startDate.setDate(startDate.getDate() - days);
+    }
+
+    // 设置日期输入框的值
+    document.getElementById('startDate').value = formatDate(startDate);
+    document.getElementById('endDate').value = formatDate(endDate);
+
+    // 更新当前日期范围
+    currentDateRange.startDate = formatDate(startDate);
+    currentDateRange.endDate = formatDate(endDate);
+
+    console.log(`日期范围设置为: ${currentDateRange.startDate} 至 ${currentDateRange.endDate}`);
+    refreshData();
+}
+
+// 格式化日期为YYYY-MM-DD
+function formatDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+// 刷新数据
+function refreshData() {
+    console.log('开始刷新数据...');
+    // 同时加载账户总览和广告系列详情
+    updateMetrics(currentDateRange.startDate, currentDateRange.endDate);
+    updateCampaignDetails(currentDateRange.startDate, currentDateRange.endDate);
+}
+
+// 切换视图
+function toggleView() {
+    const accountOverview = document.getElementById('accountOverview');
+    const campaignDetails = document.getElementById('campaignDetails');
+    const viewCampaignsBtn = document.getElementById('viewCampaigns');
+
+    isShowingCampaigns = !isShowingCampaigns;
+
+    if (isShowingCampaigns) {
+        accountOverview.classList.add('hidden');
+        campaignDetails.classList.remove('hidden');
+        viewCampaignsBtn.textContent = '返回账户总览';
+        updateCampaignDetails(currentDateRange.startDate, currentDateRange.endDate);
+    } else {
+        accountOverview.classList.remove('hidden');
+        campaignDetails.classList.add('hidden');
+        viewCampaignsBtn.textContent = '查看广告系列详情';
+        updateMetrics(currentDateRange.startDate, currentDateRange.endDate);
+    }
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('页面加载完成，开始初始化...');
+    // 初始化图表
+    initCharts();
+    
+    // 设置默认日期范围（最近30天）
+    setDateRange(30);
+    
+    // 绑定时间筛选按钮事件
+    document.querySelectorAll('.time-filter').forEach(button => {
+        button.addEventListener('click', () => {
+            setDateRange(button.dataset.days);
+        });
+    });
+    
+    // 绑定查询按钮事件
+    document.querySelector('.search-button').addEventListener('click', () => {
+        currentDateRange.startDate = document.getElementById('startDate').value;
+        currentDateRange.endDate = document.getElementById('endDate').value;
+        console.log(`手动设置日期范围: ${currentDateRange.startDate} 至 ${currentDateRange.endDate}`);
+        refreshData();
+    });
+
+    // 绑定视图切换按钮事件
+    document.getElementById('viewCampaigns').addEventListener('click', toggleView);
+}); 

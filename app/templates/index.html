@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}首页 - 广告数据看板{% endblock %}
+
+{% block extra_css %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1>广告数据看板</h1>
+        <p class="lead">欢迎使用广告数据看板系统</p>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">广告系列数据概览</h5>
+                <div class="table-responsive">
+                    <table class="table table-striped" id="campaigns-table">
+                        <thead>
+                            <tr>
+                                <th>广告系列名称</th>
+                                <th>展示次数</th>
+                                <th>点击次数</th>
+                                <th>点击率</th>
+                                <th>转化次数</th>
+                                <th>转化价值</th>
+                                <th>花费</th>
+                                <th>ROI</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- 数据将通过JavaScript动态加载 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">花费趋势</h5>
+                <canvas id="cost-chart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">转化趋势</h5>
+                <canvas id="conversion-chart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 获取广告系列数据
+    fetch('/api/campaigns')
+        .then(response => response.json())
+        .then(data => {
+            // 更新表格数据
+            const tbody = document.querySelector('#campaigns-table tbody');
+            tbody.innerHTML = '';
+            
+            data.forEach(campaign => {
+                const ctr = campaign.impressions > 0 ? 
+                    (campaign.clicks / campaign.impressions * 100).toFixed(2) + '%' : '0%';
+                const roi = campaign.cost > 0 ? 
+                    (campaign.conversions_value / campaign.cost).toFixed(2) : '0';
+                
+                const row = `
+                    <tr>
+                        <td>${campaign.name}</td>
+                        <td>${campaign.impressions.toLocaleString()}</td>
+                        <td>${campaign.clicks.toLocaleString()}</td>
+                        <td>${ctr}</td>
+                        <td>${campaign.conversions.toLocaleString()}</td>
+                        <td>${campaign.conversions_value.toLocaleString()}</td>
+                        <td>${campaign.cost.toLocaleString()}</td>
+                        <td>${roi}</td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+            
+            // 创建图表
+            createCharts(data);
+        });
+});
+
+function createCharts(data) {
+    // 花费趋势图
+    const costCtx = document.getElementById('cost-chart').getContext('2d');
+    new Chart(costCtx, {
+        type: 'line',
+        data: {
+            labels: data.map(c => c.name),
+            datasets: [{
+                label: '花费',
+                data: data.map(c => c.cost),
+                borderColor: 'rgb(75, 192, 192)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+    
+    // 转化趋势图
+    const conversionCtx = document.getElementById('conversion-chart').getContext('2d');
+    new Chart(conversionCtx, {
+        type: 'bar',
+        data: {
+            labels: data.map(c => c.name),
+            datasets: [{
+                label: '转化次数',
+                data: data.map(c => c.conversions),
+                backgroundColor: 'rgba(54, 162, 235, 0.5)'
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+</script>
+{% endblock %} 
