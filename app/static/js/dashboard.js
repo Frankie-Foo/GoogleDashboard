@@ -36,7 +36,7 @@ function updateMetrics(startDate, endDate) {
     showLoading('total-impressions');
     showLoading('ctr');
     showLoading('cpc');
-    showLoading('conversions');
+    showLoading('begin_checkout');
     
     console.log(`正在获取指标数据: ${startDate} 至 ${endDate}`);
     
@@ -62,7 +62,7 @@ function updateMetrics(startDate, endDate) {
                 showError('total-impressions', '获取失败');
                 showError('ctr', '获取失败');
                 showError('cpc', '获取失败');
-                showError('conversions', '获取失败');
+                showError('begin_checkout', '获取失败');
                 return;
             }
 
@@ -72,7 +72,7 @@ function updateMetrics(startDate, endDate) {
             document.getElementById('total-impressions').textContent = data.total_impressions.toLocaleString();
             document.getElementById('ctr').textContent = data.ctr.toFixed(2);
             document.getElementById('cpc').textContent = data.cpc.toFixed(2);
-            document.getElementById('conversions').textContent = data.conversions.toLocaleString();
+            document.getElementById('begin_checkout').textContent = data.begin_checkout.toLocaleString();
 
             // 更新图表
             updateCharts(data.daily_metrics);
@@ -85,7 +85,7 @@ function updateMetrics(startDate, endDate) {
             showError('total-impressions', '获取失败');
             showError('ctr', '获取失败');
             showError('cpc', '获取失败');
-            showError('conversions', '获取失败');
+            showError('begin_checkout', '获取失败');
         });
 }
 
@@ -152,14 +152,25 @@ function updateCampaignDetails(startDate, endDate) {
             }
 
             activeCampaigns.forEach(campaign => {
-                const row = document.createElement('tr');
-                row.className = 'border-b border-gray-700';
+                // 创建广告系列行
+                const campaignRow = document.createElement('tr');
+                campaignRow.className = 'border-b border-gray-700 campaign-row';
+                campaignRow.dataset.campaignId = campaign.id;
                 
                 // 获取状态文本
                 const statusText = getStatusText(campaign.status);
                 
-                row.innerHTML = `
-                    <td class="py-3 px-4">${campaign.name}</td>
+                campaignRow.innerHTML = `
+                    <td class="py-3 px-4">
+                        <div class="flex items-center">
+                            <button class="mr-2 text-blue-400 expand-btn" data-campaign-id="${campaign.id}">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="9 18 15 12 9 6"></polyline>
+                                </svg>
+                            </button>
+                            ${campaign.name}
+                        </div>
+                    </td>
                     <td class="text-right py-3 px-4 text-green-500">
                         ${statusText}
                     </td>
@@ -168,9 +179,71 @@ function updateCampaignDetails(startDate, endDate) {
                     <td class="text-right py-3 px-4">${campaign.impressions.toLocaleString()}</td>
                     <td class="text-right py-3 px-4">${campaign.ctr.toFixed(2)}</td>
                     <td class="text-right py-3 px-4">${campaign.cpc.toFixed(2)}</td>
-                    <td class="text-right py-3 px-4">${campaign.conversions.toLocaleString()}</td>
+                    <td class="text-right py-3 px-4">${campaign.begin_checkout.toLocaleString()}</td>
                 `;
-                tableBody.appendChild(row);
+                tableBody.appendChild(campaignRow);
+                
+                // 创建广告组行容器（初始隐藏）
+                const adGroupsContainer = document.createElement('tr');
+                adGroupsContainer.className = 'ad-groups-container hidden';
+                adGroupsContainer.dataset.campaignId = campaign.id;
+                adGroupsContainer.innerHTML = `
+                    <td colspan="8" class="p-0">
+                        <div class="ad-groups-table-container bg-gray-900 pl-8 pr-4 py-3">
+                            <h4 class="text-sm text-blue-300 mb-2">广告组详情</h4>
+                            <div class="ad-groups-loading text-center py-4 text-gray-400">点击展开按钮加载广告组数据...</div>
+                            <table class="min-w-full ad-groups-table hidden">
+                                <thead>
+                                    <tr class="border-b border-gray-700">
+                                        <th class="text-left py-2 px-2 text-xs">广告组名称</th>
+                                        <th class="text-right py-2 px-2 text-xs">状态</th>
+                                        <th class="text-right py-2 px-2 text-xs">花费 ($)</th>
+                                        <th class="text-right py-2 px-2 text-xs">点击</th>
+                                        <th class="text-right py-2 px-2 text-xs">展示</th>
+                                        <th class="text-right py-2 px-2 text-xs">点击率 (%)</th>
+                                        <th class="text-right py-2 px-2 text-xs">CPC ($)</th>
+                                        <th class="text-right py-2 px-2 text-xs">发起结账数</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="ad-groups-tbody"></tbody>
+                            </table>
+                        </div>
+                    </td>
+                `;
+                tableBody.appendChild(adGroupsContainer);
+            });
+            
+            // 添加展开/收起事件监听器
+            document.querySelectorAll('.expand-btn').forEach(button => {
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const campaignId = this.dataset.campaignId;
+                    const campaignRow = document.querySelector(`.campaign-row[data-campaign-id="${campaignId}"]`);
+                    const adGroupsContainer = document.querySelector(`.ad-groups-container[data-campaign-id="${campaignId}"]`);
+                    
+                    // 切换广告组容器的显示状态
+                    adGroupsContainer.classList.toggle('hidden');
+                    
+                    // 切换展开按钮的图标
+                    if (adGroupsContainer.classList.contains('hidden')) {
+                        // 收起状态 - 显示向右箭头
+                        this.innerHTML = `
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        `;
+                    } else {
+                        // 展开状态 - 显示向下箭头
+                        this.innerHTML = `
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        `;
+                        
+                        // 加载广告组数据
+                        loadAdGroupsData(campaignId, startDate, endDate, adGroupsContainer);
+                    }
+                });
             });
         })
         .catch(error => {
@@ -179,11 +252,77 @@ function updateCampaignDetails(startDate, endDate) {
         });
 }
 
+// 加载广告组数据
+function loadAdGroupsData(campaignId, startDate, endDate, container) {
+    const loadingElem = container.querySelector('.ad-groups-loading');
+    const tableElem = container.querySelector('.ad-groups-table');
+    const tbodyElem = container.querySelector('.ad-groups-tbody');
+    
+    // 显示加载中状态
+    loadingElem.textContent = '加载中...';
+    loadingElem.classList.remove('hidden');
+    tableElem.classList.add('hidden');
+    
+    const params = new URLSearchParams({
+        start_date: startDate,
+        end_date: endDate
+    });
+    
+    fetch(`/api/ad_groups/${campaignId}?${params}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`API请求失败: ${response.status} ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(adGroups => {
+            console.log(`获取到广告系列 ${campaignId} 的 ${adGroups.length} 个广告组数据`);
+            
+            if (adGroups.length === 0) {
+                loadingElem.textContent = '该广告系列下没有广告组数据';
+                return;
+            }
+            
+            // 隐藏加载中提示，显示表格
+            loadingElem.classList.add('hidden');
+            tableElem.classList.remove('hidden');
+            
+            // 清空表格内容
+            tbodyElem.innerHTML = '';
+            
+            // 填充广告组数据
+            adGroups.forEach(adGroup => {
+                const row = document.createElement('tr');
+                row.className = 'border-b border-gray-800';
+                
+                const statusText = getStatusText(adGroup.status);
+                
+                row.innerHTML = `
+                    <td class="py-2 px-2 text-sm">${adGroup.name}</td>
+                    <td class="text-right py-2 px-2 text-sm text-green-500">${statusText}</td>
+                    <td class="text-right py-2 px-2 text-sm">${adGroup.cost.toLocaleString()}</td>
+                    <td class="text-right py-2 px-2 text-sm">${adGroup.clicks.toLocaleString()}</td>
+                    <td class="text-right py-2 px-2 text-sm">${adGroup.impressions.toLocaleString()}</td>
+                    <td class="text-right py-2 px-2 text-sm">${adGroup.ctr.toFixed(2)}</td>
+                    <td class="text-right py-2 px-2 text-sm">${adGroup.cpc.toFixed(2)}</td>
+                    <td class="text-right py-2 px-2 text-sm">${adGroup.begin_checkout.toLocaleString()}</td>
+                `;
+                
+                tbodyElem.appendChild(row);
+            });
+        })
+        .catch(error => {
+            console.error(`获取广告组数据失败:`, error);
+            loadingElem.textContent = `加载失败: ${error.message}`;
+            loadingElem.classList.add('text-red-500');
+        });
+}
+
 // 初始化图表
 function initCharts() {
     try {
         console.log('初始化图表...');
-        // 花费与转化趋势图表（组合图表：花费用柱状图，转化用折线图）
+        // 花费与发起结账趋势图表（组合图表：花费用柱状图，发起结账用折线图）
         const costConversionCtx = document.getElementById('cost-conversion-chart').getContext('2d');
         costConversionChart = new Chart(costConversionCtx, {
             type: 'bar', // 基础类型为柱状图
@@ -199,7 +338,7 @@ function initCharts() {
                         order: 1
                     },
                     {
-                        label: '转化',
+                        label: '发起结账数',
                         type: 'line', // 显式设置为折线图类型
                         borderColor: '#2196F3',
                         backgroundColor: 'rgba(33, 150, 243, 0.1)',
@@ -258,7 +397,7 @@ function initCharts() {
                         position: 'right',
                         title: {
                             display: true,
-                            text: '转化次数',
+                            text: '发起结账数量',
                             color: 'rgba(255, 255, 255, 0.7)'
                         },
                         grid: {
@@ -377,7 +516,7 @@ function updateCharts(dailyMetrics) {
         
         costConversionChart.data.labels = labels;
         costConversionChart.data.datasets[0].data = dailyMetrics.map(d => d.cost);
-        costConversionChart.data.datasets[1].data = dailyMetrics.map(d => d.conversions);
+        costConversionChart.data.datasets[1].data = dailyMetrics.map(d => d.begin_checkout || d.conversions);
         costConversionChart.update();
 
         clicksImpressionsChart.data.labels = labels;

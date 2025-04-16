@@ -60,18 +60,18 @@
                     <h3 class="text-yellow-500 text-sm mb-2">CPC ($)</h3>
                     <p class="text-3xl font-bold" id="cpc">{{ cpc|default('--') }}</p>
                 </div>
-                <!-- 转化数 -->
+                <!-- 发起结账数 -->
                 <div class="bg-gray-800 p-6 rounded-lg">
-                    <h3 class="text-yellow-500 text-sm mb-2">转化数</h3>
-                    <p class="text-3xl font-bold" id="conversions">{{ conversions|default('--') }}</p>
+                    <h3 class="text-yellow-500 text-sm mb-2">发起结账数</h3>
+                    <p class="text-3xl font-bold" id="begin_checkout">{{ begin_checkout|default('--') }}</p>
                 </div>
             </div>
 
             <!-- 图表区域 -->
             <div class="grid grid-cols-2 gap-6">
-                <!-- 花费与转化趋势 -->
+                <!-- 花费与发起结账趋势 -->
                 <div class="bg-gray-800 p-6 rounded-lg">
-                    <h3 class="text-lg font-semibold mb-4">花费与转化趋势</h3>
+                    <h3 class="text-lg font-semibold mb-4">花费与发起结账趋势</h3>
                     <div class="h-80 relative">
                         <canvas id="cost-conversion-chart"></canvas>
                     </div>
@@ -101,7 +101,7 @@
                                 <th class="text-right py-3 px-4">展示</th>
                                 <th class="text-right py-3 px-4">点击率 (%)</th>
                                 <th class="text-right py-3 px-4">CPC ($)</th>
-                                <th class="text-right py-3 px-4">转化数</th>
+                                <th class="text-right py-3 px-4">发起结账数</th>
                             </tr>
                         </thead>
                         <tbody id="campaignTableBody">

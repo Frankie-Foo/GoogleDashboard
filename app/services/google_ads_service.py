@@ -135,7 +135,7 @@ class GoogleAdsService:
     
     def get_campaign_metrics(self, customer_id=None, start_date=None, end_date=None):
         """
-        获取广告系列指标数据，考虑权限限制
+        获取广告系列指标数据，考虑权限限制，并专门提取发起结账数据
         
         Args:
             customer_id (str, optional): 客户ID，如果不提供则使用默认客户ID
@@ -143,7 +143,7 @@ class GoogleAdsService:
             end_date (str): 结束日期，格式：YYYY-MM-DD
             
         Returns:
-            list: 广告系列数据列表
+            list: 广告系列数据列表，包括发起结账数据
         """
         try:
             # 如果未提供客户ID，则使用默认客户ID
@@ -198,7 +198,8 @@ class GoogleAdsService:
                         'impressions': 0,
                         'clicks': 0,
                         'cost': 0,
-                        'conversions': 0
+                        'conversions': 0,
+                        'begin_checkout': 0  # 初始化发起结账数字段
                     }
                     print(f"找到广告系列: {row.campaign.name} (ID: {campaign_id}), 状态: {status_value} ({status_name})")
                 
@@ -207,7 +208,7 @@ class GoogleAdsService:
                     print("未找到任何广告系列")
                     return []
                 
-                # 获取指定日期范围内的指标数据
+                # 获取指定日期范围内的基本指标数据（展示、点击、花费、所有转化）
                 metrics_query = f"""
                     SELECT
                         campaign.id,
@@ -221,14 +222,14 @@ class GoogleAdsService:
                     FROM campaign
                     WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
                 """
-                print(f"执行指标查询: {metrics_query}")
+                print(f"执行基本指标查询: {metrics_query}")
                 
                 metrics_response = ga_service.search(
                     customer_id=customer_id,
                     query=metrics_query
                 )
                 
-                # 汇总每个广告系列的指标
+                # 汇总每个广告系列的基本指标
                 for row in metrics_response:
                     campaign_id = row.campaign.id
                     if campaign_id in campaign_metrics:
@@ -237,11 +238,65 @@ class GoogleAdsService:
                         metrics['clicks'] += row.metrics.clicks
                         metrics['cost'] += row.metrics.cost_micros / 1000000
                         metrics['conversions'] += row.metrics.conversions
-                        print(f"更新广告系列 {row.campaign.name} 的指标数据 (日期: {row.segments.date}):")
+                        print(f"更新广告系列 {row.campaign.name} 的基本指标数据 (日期: {row.segments.date}):")
                         print(f"- 展示: +{row.metrics.impressions}")
                         print(f"- 点击: +{row.metrics.clicks}")
                         print(f"- 花费: +${row.metrics.cost_micros / 1000000:.2f}")
-                        print(f"- 转化: +{row.metrics.conversions}")
+                        print(f"- 总转化: +{row.metrics.conversions}")
+                
+                # 查询发起结账相关转化数据
+                checkout_query = f"""
+                    SELECT
+                        campaign.id,
+                        campaign.name,
+                        segments.date,
+                        segments.conversion_action_name,
+                        segments.conversion_action_category,
+                        metrics.conversions
+                    FROM campaign
+                    WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
+                    AND metrics.conversions > 0
+                """
+                print(f"执行发起结账查询: {checkout_query}")
+                
+                checkout_response = ga_service.search(
+                    customer_id=customer_id,
+                    query=checkout_query
+                )
+                
+                # 发起结账关键词列表
+                checkout_keywords = [
+                    'checkout', '结账', '付款', 'payment', 'check out', 
+                    'place order', '下单', 'initiat', '开始', 'proceed', 
+                    'purchase', '购买', 'buy', 'pay', '支付'
+                ]
+                
+                # 处理发起结账数据
+                checkout_row_count = 0
+                
+                for row in checkout_response:
+                    campaign_id = row.campaign.id
+                    if campaign_id not in campaign_metrics:
+                        continue
+                    
+                    conversion_name = str(row.segments.conversion_action_name).lower() if row.segments.conversion_action_name else ""
+                    conversion_category = str(row.segments.conversion_action_category).lower() if row.segments.conversion_action_category else ""
+                    
+                    # 检查是否是发起结账相关的转化
+                    is_checkout = False
+                    for keyword in checkout_keywords:
+                        if keyword in conversion_name:
+                            is_checkout = True
+                            break
+                    
+                    # 如果是发起结账相关的转化，累加到begin_checkout字段
+                    if is_checkout:
+                        checkout_count = int(row.metrics.conversions)
+                        campaign_metrics[campaign_id]['begin_checkout'] += checkout_count
+                        checkout_row_count += 1
+                        print(f"广告系列 {row.campaign.name} (ID: {campaign_id}) - 找到发起结账转化: '{conversion_name}', 数量: {checkout_count}")
+                
+                print(f"发起结账查询API返回了 {checkout_row_count} 行数据")
                 
                 # 计算每个广告系列的衍生指标并添加到结果列表
                 for campaign in campaign_metrics.values():
@@ -254,6 +309,7 @@ class GoogleAdsService:
                     print(f"- 总点击: {campaign['clicks']}")
                     print(f"- 总花费: ${campaign['cost']:.2f}")
                     print(f"- 总转化: {campaign['conversions']}")
+                    print(f"- 发起结账数: {campaign['begin_checkout']}")
                     print(f"- 点击率: {campaign['ctr']:.2f}%")
                     print(f"- CPC: ${campaign['cpc']:.2f}")
                 
@@ -399,80 +455,146 @@ class GoogleAdsService:
 
     def get_daily_metrics(self, start_date=None, end_date=None):
         """
-        获取每日指标数据用于图表展示
+        获取每日指标数据，专门提取发起结账数据替代转化数
         
         Args:
             start_date (str): 开始日期，格式：YYYY-MM-DD
             end_date (str): 结束日期，格式：YYYY-MM-DD
             
         Returns:
-            list: 每日指标数据列表
+            list: 每日指标数据列表，包含发起结账数据
         """
         try:
-            print(f"开始获取每日指标数据，日期范围: {start_date} 至 {end_date}")
-            ga_service = self.client.get_service("GoogleAdsService")
+            print(f"开始获取每日指标数据（提取发起结账数据），日期范围: {start_date} 至 {end_date}")
             
-            query = f"""
+            # 初始化结果字典，确保每一天都有数据
+            start = datetime.strptime(start_date, '%Y-%m-%d')
+            end = datetime.strptime(end_date, '%Y-%m-%d')
+            date_range = (end - start).days + 1
+            print(f"初始化日期范围: {date_range}天")
+            
+            daily_metrics = {
+                (start + timedelta(days=x)).strftime('%Y-%m-%d'): {
+                    'date': (start + timedelta(days=x)).strftime('%Y-%m-%d'),
+                    'impressions': 0,
+                    'clicks': 0,
+                    'cost': 0,
+                    'conversions': 0,  # 将替换为发起结账数
+                    'begin_checkout': 0  # 专门存储发起结账数
+                }
+                for x in range(date_range)
+            }
+            
+            # 第1步：获取基础指标数据（展示、点击、花费）
+            ga_service = self.client.get_service("GoogleAdsService")
+            basic_query = f"""
                 SELECT
                     segments.date,
                     metrics.impressions,
                     metrics.clicks,
-                    metrics.cost_micros,
-                    metrics.conversions
+                    metrics.cost_micros
                 FROM campaign
                 WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
                 ORDER BY segments.date ASC
             """
-            print(f"每日指标查询: {query}")
+            print(f"基础指标查询: {basic_query}")
             
             try:
-                print(f"执行查询，客户ID: {self.customer_id}")
-                response = ga_service.search(
+                print(f"执行基础指标查询，客户ID: {self.customer_id}")
+                basic_response = ga_service.search(
                     customer_id=self.customer_id,
-                    query=query
+                    query=basic_query
                 )
                 
-                # 初始化结果字典，确保每一天都有数据
-                start = datetime.strptime(start_date, '%Y-%m-%d')
-                end = datetime.strptime(end_date, '%Y-%m-%d')
-                date_range = (end - start).days + 1
-                print(f"初始化日期范围: {date_range}天")
-                
-                daily_metrics = {
-                    (start + timedelta(days=x)).strftime('%Y-%m-%d'): {
-                        'date': (start + timedelta(days=x)).strftime('%Y-%m-%d'),
-                        'impressions': 0,
-                        'clicks': 0,
-                        'cost': 0,
-                        'conversions': 0
-                    }
-                    for x in range(date_range)
-                }
-                
-                # 填充实际数据
+                # 填充基础指标数据
                 row_count = 0
-                for row in response:
+                for row in basic_response:
                     row_count += 1
                     date = row.segments.date
-                    daily_metrics[date].update({
-                        'impressions': row.metrics.impressions,
-                        'clicks': row.metrics.clicks,
-                        'cost': row.metrics.cost_micros / 1000000,
-                        'conversions': row.metrics.conversions
-                    })
-                    print(f"日期 {date} - 展示: {row.metrics.impressions}, 点击: {row.metrics.clicks}, 花费: ${row.metrics.cost_micros / 1000000:.2f}")
+                    if date in daily_metrics:
+                        daily_metrics[date].update({
+                            'impressions': row.metrics.impressions,
+                            'clicks': row.metrics.clicks,
+                            'cost': row.metrics.cost_micros / 1000000
+                        })
+                        print(f"日期 {date} - 基础指标: 展示:{row.metrics.impressions}, 点击:{row.metrics.clicks}, 花费:${row.metrics.cost_micros / 1000000:.2f}")
                 
-                print(f"API返回了 {row_count} 行数据")
+                print(f"基础查询API返回了 {row_count} 行数据")
+                
+                # 第2步：获取转化数据，包含转化行为名称
+                conversion_query = f"""
+                    SELECT
+                        segments.date,
+                        segments.conversion_action_name,
+                        segments.conversion_action_category,
+                        metrics.conversions
+                    FROM campaign
+                    WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
+                    AND metrics.conversions > 0
+                    ORDER BY segments.date ASC
+                """
+                print(f"转化数据查询: {conversion_query}")
+                
+                # 执行转化查询
+                print(f"执行转化数据查询，客户ID: {self.customer_id}")
+                conversion_response = ga_service.search(
+                    customer_id=self.customer_id,
+                    query=conversion_query
+                )
+                
+                # 发起结账关键词列表
+                checkout_keywords = [
+                    'checkout', '结账', '付款', 'payment', 'check out', 
+                    'place order', '下单', 'initiat', '开始', 'proceed', 
+                    'purchase', '购买', 'buy', 'pay', '支付'
+                ]
+                
+                # 处理转化数据
+                checkout_row_count = 0
+                total_checkout = 0
+                
+                for row in conversion_response:
+                    date = row.segments.date
+                    conversions = row.metrics.conversions
+                    
+                    # 检查日期是否在我们的日期范围内
+                    if date not in daily_metrics:
+                        continue
+                    
+                    # 获取转化行为名称和类别
+                    conversion_name = str(row.segments.conversion_action_name).lower() if row.segments.conversion_action_name else ""
+                    conversion_category = str(row.segments.conversion_action_category).lower() if row.segments.conversion_action_category else ""
+                    
+                    # 检查是否是发起结账相关的转化
+                    is_checkout = False
+                    for keyword in checkout_keywords:
+                        if keyword in conversion_name:
+                            is_checkout = True
+                            break
+                    
+                    # 如果是发起结账相关的转化，累加到begin_checkout字段
+                    if is_checkout:
+                        checkout_count = int(conversions)
+                        daily_metrics[date]['begin_checkout'] += checkout_count
+                        total_checkout += checkout_count
+                        checkout_row_count += 1
+                        print(f"日期 {date} - 找到发起结账转化: '{conversion_name}', 数量: {checkout_count}")
+                    
+                print(f"转化查询API返回了 {checkout_row_count} 行发起结账数据，总计 {total_checkout} 次发起结账")
+                
+                # 将每天的begin_checkout值复制到conversions字段
+                for date, metrics in daily_metrics.items():
+                    metrics['conversions'] = metrics['begin_checkout']  # 用发起结账数替代转化数
                 
                 # 转换为列表并按日期排序
                 result = list(daily_metrics.values())
                 result.sort(key=lambda x: x['date'])
                 
-                print(f"准备返回 {len(result)} 天的数据")
+                print(f"准备返回 {len(result)} 天的数据，发起结账总数: {sum(day['begin_checkout'] for day in result)}")
                 return result
                 
             except GoogleAdsException as ex:
-                print(f"❌ 获取每日指标数据查询失败: {ex}")
+                print(f"❌ 查询失败: {ex}")
                 print("错误详情:")
                 for error in ex.failure.errors:
                     print(f"\t- {error.message}")
@@ -485,9 +607,8 @@ class GoogleAdsService:
         except Exception as e:
             print(f"❌ 获取每日指标数据时发生未知错误: {str(e)}")
             import traceback
-            print("错误堆栈:")
             print(traceback.format_exc())
-            return [] 
+            return []
 
     def _get_status_name(self, status_value):
         """
@@ -512,3 +633,176 @@ class GoogleAdsService:
                 return "已删除"
             else:
                 return f"{status_value} (未知)"
+
+    def get_ad_group_metrics(self, campaign_id, start_date=None, end_date=None):
+        """
+        获取特定广告系列下的广告组指标数据，包括发起结账数据
+        
+        Args:
+            campaign_id (str): 广告系列ID
+            start_date (str): 开始日期，格式：YYYY-MM-DD
+            end_date (str): 结束日期，格式：YYYY-MM-DD
+            
+        Returns:
+            list: 广告组数据列表
+        """
+        try:
+            customer_id = self.customer_id
+            print(f"获取广告系列 {campaign_id} 的广告组数据，日期范围: {start_date} 至 {end_date}")
+            
+            # 构建查询
+            ga_service = self.client.get_service("GoogleAdsService")
+            
+            # 获取基本广告组数据
+            base_query = f"""
+                SELECT
+                    ad_group.id,
+                    ad_group.name,
+                    ad_group.status,
+                    campaign.id
+                FROM ad_group
+                WHERE campaign.id = {campaign_id}
+            """
+            print(f"执行广告组基础查询: {base_query}")
+            
+            # 执行基本查询
+            base_response = ga_service.search(
+                customer_id=customer_id,
+                query=base_query
+            )
+            
+            # 处理基本数据
+            ad_groups = []
+            ad_group_metrics = {}
+            
+            for row in base_response:
+                ad_group_id = row.ad_group.id
+                ad_group_name = row.ad_group.name
+                status = row.ad_group.status
+                status_value = getattr(status, 'value', status)
+                status_name = self._get_status_name(status_value)
+                
+                ad_group_metrics[ad_group_id] = {
+                    'id': ad_group_id,
+                    'name': ad_group_name,
+                    'status': status_value,
+                    'status_name': status_name,
+                    'impressions': 0,
+                    'clicks': 0,
+                    'cost': 0,
+                    'conversions': 0,
+                    'begin_checkout': 0,
+                    'campaign_id': campaign_id
+                }
+                print(f"找到广告组: {ad_group_name} (ID: {ad_group_id}), 状态: {status_name}")
+            
+            if not ad_group_metrics:
+                print(f"未找到广告系列 {campaign_id} 的任何广告组")
+                return []
+            
+            # 查询指标数据
+            metrics_query = f"""
+                SELECT
+                    ad_group.id,
+                    ad_group.name,
+                    segments.date,
+                    metrics.impressions,
+                    metrics.clicks,
+                    metrics.cost_micros,
+                    metrics.conversions
+                FROM ad_group
+                WHERE campaign.id = {campaign_id}
+                AND segments.date BETWEEN '{start_date}' AND '{end_date}'
+            """
+            print(f"执行广告组指标查询: {metrics_query}")
+            
+            metrics_response = ga_service.search(
+                customer_id=customer_id,
+                query=metrics_query
+            )
+            
+            # 处理指标数据
+            for row in metrics_response:
+                ad_group_id = row.ad_group.id
+                if ad_group_id in ad_group_metrics:
+                    metrics = ad_group_metrics[ad_group_id]
+                    metrics['impressions'] += row.metrics.impressions
+                    metrics['clicks'] += row.metrics.clicks
+                    metrics['cost'] += row.metrics.cost_micros / 1000000
+                    metrics['conversions'] += row.metrics.conversions
+                    print(f"更新广告组 {row.ad_group.name} 的指标数据 (日期: {row.segments.date})")
+            
+            # 查询发起结账相关转化数据
+            checkout_query = f"""
+                SELECT
+                    ad_group.id,
+                    segments.date,
+                    segments.conversion_action_name,
+                    segments.conversion_action_category,
+                    metrics.conversions
+                FROM ad_group
+                WHERE campaign.id = {campaign_id}
+                AND segments.date BETWEEN '{start_date}' AND '{end_date}'
+                AND metrics.conversions > 0
+            """
+            print(f"执行广告组发起结账查询: {checkout_query}")
+            
+            checkout_response = ga_service.search(
+                customer_id=customer_id,
+                query=checkout_query
+            )
+            
+            # 发起结账关键词列表
+            checkout_keywords = [
+                'checkout', '结账', '付款', 'payment', 'check out', 
+                'place order', '下单', 'initiat', '开始', 'proceed', 
+                'purchase', '购买', 'buy', 'pay', '支付'
+            ]
+            
+            # 处理发起结账数据
+            checkout_row_count = 0
+            for row in checkout_response:
+                ad_group_id = row.ad_group.id
+                if ad_group_id not in ad_group_metrics:
+                    continue
+                    
+                conversion_name = str(row.segments.conversion_action_name).lower() if row.segments.conversion_action_name else ""
+                
+                # 检查是否是发起结账相关的转化
+                is_checkout = False
+                for keyword in checkout_keywords:
+                    if keyword in conversion_name:
+                        is_checkout = True
+                        break
+                        
+                # 如果是发起结账相关的转化，累加到begin_checkout字段
+                if is_checkout:
+                    checkout_count = int(row.metrics.conversions)
+                    ad_group_metrics[ad_group_id]['begin_checkout'] += checkout_count
+                    checkout_row_count += 1
+                    print(f"广告组 ID: {ad_group_id} - 找到发起结账转化: '{conversion_name}', 数量: {checkout_count}")
+            
+            print(f"发起结账查询API返回了 {checkout_row_count} 行数据")
+            
+            # 计算衍生指标并添加到结果列表
+            for ad_group in ad_group_metrics.values():
+                ad_group['ctr'] = (ad_group['clicks'] / ad_group['impressions'] * 100) if ad_group['impressions'] > 0 else 0
+                ad_group['cpc'] = (ad_group['cost'] / ad_group['clicks']) if ad_group['clicks'] > 0 else 0
+                ad_groups.append(ad_group)
+            
+            # 按展示量降序排序
+            ad_groups.sort(key=lambda x: x['impressions'], reverse=True)
+            
+            print(f"成功获取 {len(ad_groups)} 个广告组数据")
+            return ad_groups
+            
+        except GoogleAdsException as ex:
+            print(f"❌ 查询广告组数据失败: {ex}")
+            for error in ex.failure.errors:
+                print(f"\t- {error.message}")
+            return []
+        except Exception as e:
+            print(f"❌ 获取广告组数据时发生未知错误: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            return []

@@ -41,7 +41,7 @@ def get_metrics():
                 'total_impressions': 0,
                 'ctr': 0,
                 'cpc': 0,
-                'conversions': 0,
+                'begin_checkout': 0,
                 'daily_metrics': []
             })
         
@@ -62,7 +62,7 @@ def get_metrics():
         print(f"- 总展示: {total_impressions}")
         print(f"- 点击率: {ctr:.2f}%")
         print(f"- CPC: ${cpc:.2f}")
-        print(f"- 转化数: {total_conversions}")
+        print(f"- 发起结账数: {total_conversions}")
         
         # 获取每日指标数据用于图表
         print("调用get_daily_metrics获取每日数据...")
@@ -72,13 +72,17 @@ def get_metrics():
         )
         print(f"获取到 {len(daily_metrics)} 天的每日数据")
         
+        # 计算每日发起结账总数
+        daily_checkout_total = sum(day.get('begin_checkout', 0) for day in daily_metrics)
+        print(f"从每日数据中汇总的发起结账总数: {daily_checkout_total}")
+        
         result = {
             'total_cost': round(total_cost, 2),
             'total_clicks': total_clicks,
             'total_impressions': total_impressions,
             'ctr': round(ctr, 2),
             'cpc': round(cpc, 2),
-            'conversions': total_conversions,
+            'begin_checkout': daily_checkout_total,  # 使用从每日数据中汇总的发起结账数
             'daily_metrics': daily_metrics
         }
         print("准备返回数据:", result)
@@ -136,4 +140,37 @@ def get_campaigns():
         print(traceback.format_exc())
         
         # 如果发生错误，仍然尝试返回一个空列表
+        return jsonify([])
+
+@bp.route('/api/ad_groups/<campaign_id>')
+def get_ad_groups(campaign_id):
+    """获取特定广告系列下的广告组数据"""
+    try:
+        # 获取日期范围
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        if not start_date or not end_date:
+            # 默认获取最近7天的数据
+            end_date = datetime.now().strftime('%Y-%m-%d')
+            start_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+            
+        print(f"获取广告系列 {campaign_id} 的广告组数据: {start_date} 至 {end_date}")
+        
+        # 获取广告组数据
+        ad_groups = ads_service.get_ad_group_metrics(
+            campaign_id=campaign_id,
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        print(f"为广告系列 {campaign_id} 返回 {len(ad_groups)} 个广告组数据")
+        return jsonify(ad_groups)
+        
+    except Exception as e:
+        print(f"获取广告组数据时发生错误: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        
+        # 如果发生错误，返回空列表
         return jsonify([]) 
