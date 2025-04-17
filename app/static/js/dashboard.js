@@ -11,6 +11,9 @@ let currentDateRange = {
     endDate: null
 };
 
+// 初始化日期选择器
+let dateRangePicker = null;
+
 // 显示加载状态
 function showLoading(id, isLoading = true) {
     const element = document.getElementById(id);
@@ -563,9 +566,8 @@ function setDateRange(days) {
         startDate.setDate(startDate.getDate() - days);
     }
 
-    // 设置日期输入框的值
-    document.getElementById('startDate').value = formatDate(startDate);
-    document.getElementById('endDate').value = formatDate(endDate);
+    // 更新日期选择器的值
+    dateRangePicker.setDate([startDate, endDate]);
 
     // 更新当前日期范围
     currentDateRange.startDate = formatDate(startDate);
@@ -615,6 +617,23 @@ function toggleView() {
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', () => {
     console.log('页面加载完成，开始初始化...');
+    
+    // 初始化日期选择器
+    dateRangePicker = flatpickr("#dateRange", {
+        mode: "range",
+        locale: "zh",
+        dateFormat: "Y-m-d",
+        defaultDate: [new Date().setDate(new Date().getDate() - 30), new Date().setDate(new Date().getDate() - 1)],
+        maxDate: "today",
+        theme: "dark",
+        onChange: function(selectedDates) {
+            if (selectedDates.length === 2) {
+                currentDateRange.startDate = formatDate(selectedDates[0]);
+                currentDateRange.endDate = formatDate(selectedDates[1]);
+            }
+        }
+    });
+    
     // 初始化图表
     initCharts();
     
@@ -630,10 +649,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 绑定查询按钮事件
     document.querySelector('.search-button').addEventListener('click', () => {
-        currentDateRange.startDate = document.getElementById('startDate').value;
-        currentDateRange.endDate = document.getElementById('endDate').value;
-        console.log(`手动设置日期范围: ${currentDateRange.startDate} 至 ${currentDateRange.endDate}`);
-        refreshData();
+        if (currentDateRange.startDate && currentDateRange.endDate) {
+            console.log(`手动设置日期范围: ${currentDateRange.startDate} 至 ${currentDateRange.endDate}`);
+            refreshData();
+        } else {
+            console.warn('请选择完整的日期范围');
+        }
     });
 
     // 绑定视图切换按钮事件

@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Google广告数据</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
 </head>
 <body class="bg-gray-900 text-white">
     <div class="container mx-auto px-4 py-8">
@@ -23,9 +25,7 @@
                 <button class="bg-gray-800 px-4 py-2 rounded time-filter" data-days="this-month">本月</button>
             </div>
             <div class="flex items-center space-x-2">
-                <input type="date" id="startDate" class="bg-gray-800 px-4 py-2 rounded">
-                <span>至</span>
-                <input type="date" id="endDate" class="bg-gray-800 px-4 py-2 rounded">
+                <input type="text" id="dateRange" class="bg-gray-800 px-4 py-2 rounded" placeholder="选择日期范围" style="min-width: 300px;">
                 <button class="bg-blue-600 px-4 py-2 rounded search-button">查询</button>
             </div>
         </div>
@@ -118,6 +118,8 @@
 
     <!-- 加载必要的JS -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh.js"></script>
     <script src="/static/js/dashboard.js"></script>
 </body>
 </html> 
