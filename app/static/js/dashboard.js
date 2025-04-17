@@ -31,8 +31,25 @@ function showError(id, message = '加载失败') {
     }
 }
 
+// 显示环比变化
+function showMomChange(id, change) {
+    const element = document.getElementById(`${id}-mom`);
+    if (element) {
+        if (change > 0) {
+            element.textContent = `↑ ${change.toFixed(2)}%`;
+            element.className = 'ml-2 text-sm text-green-500';
+        } else if (change < 0) {
+            element.textContent = `↓ ${Math.abs(change).toFixed(2)}%`;
+            element.className = 'ml-2 text-sm text-red-500';
+        } else {
+            element.textContent = `--`;
+            element.className = 'ml-2 text-sm text-gray-500';
+        }
+    }
+}
+
 // 更新数据卡片
-function updateMetrics(startDate, endDate) {
+function updateMetrics(startDate, endDate, periodType = 'custom') {
     // 显示所有指标为加载中状态
     showLoading('total-cost');
     showLoading('total-clicks');
@@ -41,11 +58,20 @@ function updateMetrics(startDate, endDate) {
     showLoading('cpc');
     showLoading('begin_checkout');
     
-    console.log(`正在获取指标数据: ${startDate} 至 ${endDate}`);
+    // 清空环比显示
+    document.getElementById('total-cost-mom').textContent = '';
+    document.getElementById('total-clicks-mom').textContent = '';
+    document.getElementById('total-impressions-mom').textContent = '';
+    document.getElementById('ctr-mom').textContent = '';
+    document.getElementById('cpc-mom').textContent = '';
+    document.getElementById('begin_checkout-mom').textContent = '';
+    
+    console.log(`正在获取指标数据: ${startDate} 至 ${endDate}, 时间段类型: ${periodType}`);
     
     const params = new URLSearchParams({
         start_date: startDate,
-        end_date: endDate
+        end_date: endDate,
+        period_type: periodType
     });
 
     fetch(`/api/metrics?${params}`)
@@ -76,6 +102,16 @@ function updateMetrics(startDate, endDate) {
             document.getElementById('ctr').textContent = data.ctr.toFixed(2);
             document.getElementById('cpc').textContent = data.cpc.toFixed(2);
             document.getElementById('begin_checkout').textContent = data.begin_checkout.toLocaleString();
+
+            // 更新环比数据
+            if (data.mom_changes) {
+                showMomChange('total-cost', data.mom_changes.cost);
+                showMomChange('total-clicks', data.mom_changes.clicks);
+                showMomChange('total-impressions', data.mom_changes.impressions);
+                showMomChange('ctr', data.mom_changes.ctr);
+                showMomChange('cpc', data.mom_changes.cpc);
+                showMomChange('begin_checkout', data.mom_changes.begin_checkout);
+            }
 
             // 更新图表
             updateCharts(data.daily_metrics);
@@ -537,15 +573,18 @@ function setDateRange(days) {
     console.log(`设置日期范围: ${days}`);
     const now = new Date(); // 当前日期
     let startDate, endDate;
+    let periodType = 'custom';
 
     if (days === 'prev-month') {
         // 上月：从上月第一天到上月最后一天
         startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         endDate = new Date(now.getFullYear(), now.getMonth(), 0); // 上月最后一天
+        periodType = 'prev_month';
     } else if (days === 'this-month') {
         // 本月：从本月第一天到今天
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
         endDate = new Date(now);
+        periodType = 'this_month';
     } else if (days === 1) {
         // 昨日：昨天的00:00到昨天的23:59
         endDate = new Date(now);
@@ -557,13 +596,15 @@ function setDateRange(days) {
         twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
         startDate = new Date(twoDaysAgo);
         endDate = new Date(twoDaysAgo);
-        console.log(`前日日期设置为: ${formatDate(startDate)}`);
     } else {
         // 最近n天：从n天前到昨天
         endDate = new Date(now);
         endDate.setDate(endDate.getDate() - 1); // 截止到昨天
         startDate = new Date(now);
         startDate.setDate(startDate.getDate() - days);
+        if (days === 30) {
+            periodType = 'last_30_days';
+        }
     }
 
     // 更新日期选择器的值
@@ -573,8 +614,8 @@ function setDateRange(days) {
     currentDateRange.startDate = formatDate(startDate);
     currentDateRange.endDate = formatDate(endDate);
 
-    console.log(`日期范围设置为: ${currentDateRange.startDate} 至 ${currentDateRange.endDate}`);
-    refreshData();
+    console.log(`日期范围设置为: ${currentDateRange.startDate} 至 ${currentDateRange.endDate}, 时间段类型: ${periodType}`);
+    refreshData(periodType);
 }
 
 // 格式化日期为YYYY-MM-DD
@@ -586,10 +627,10 @@ function formatDate(date) {
 }
 
 // 刷新数据
-function refreshData() {
+function refreshData(periodType = 'custom') {
     console.log('开始刷新数据...');
     // 同时加载账户总览和广告系列详情
-    updateMetrics(currentDateRange.startDate, currentDateRange.endDate);
+    updateMetrics(currentDateRange.startDate, currentDateRange.endDate, periodType);
     updateCampaignDetails(currentDateRange.startDate, currentDateRange.endDate);
 }
 
@@ -651,7 +692,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelector('.search-button').addEventListener('click', () => {
         if (currentDateRange.startDate && currentDateRange.endDate) {
             console.log(`手动设置日期范围: ${currentDateRange.startDate} 至 ${currentDateRange.endDate}`);
-            refreshData();
+            refreshData('custom');  // 手动选择日期时使用自定义模式
         } else {
             console.warn('请选择完整的日期范围');
         }

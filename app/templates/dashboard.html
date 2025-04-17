@@ -38,32 +38,50 @@
                 <!-- 总花费 -->
                 <div class="bg-gray-800 p-6 rounded-lg">
                     <h3 class="text-yellow-500 text-sm mb-2">总花费 ($)</h3>
-                    <p class="text-3xl font-bold" id="total-cost">{{ total_cost|default('--') }}</p>
+                    <div class="flex items-baseline">
+                        <p class="text-3xl font-bold" id="total-cost">{{ total_cost|default('--') }}</p>
+                        <p class="ml-2 text-sm" id="total-cost-mom"></p>
+                    </div>
                 </div>
                 <!-- 链接点击 -->
                 <div class="bg-gray-800 p-6 rounded-lg">
                     <h3 class="text-yellow-500 text-sm mb-2">链接点击</h3>
-                    <p class="text-3xl font-bold" id="total-clicks">{{ total_clicks|default('--') }}</p>
+                    <div class="flex items-baseline">
+                        <p class="text-3xl font-bold" id="total-clicks">{{ total_clicks|default('--') }}</p>
+                        <p class="ml-2 text-sm" id="total-clicks-mom"></p>
+                    </div>
                 </div>
                 <!-- 总展现量 -->
                 <div class="bg-gray-800 p-6 rounded-lg">
                     <h3 class="text-yellow-500 text-sm mb-2">总展现量</h3>
-                    <p class="text-3xl font-bold" id="total-impressions">{{ total_impressions|default('--') }}</p>
+                    <div class="flex items-baseline">
+                        <p class="text-3xl font-bold" id="total-impressions">{{ total_impressions|default('--') }}</p>
+                        <p class="ml-2 text-sm" id="total-impressions-mom"></p>
+                    </div>
                 </div>
                 <!-- 点击率 -->
                 <div class="bg-gray-800 p-6 rounded-lg">
                     <h3 class="text-yellow-500 text-sm mb-2">点击率 (%)</h3>
-                    <p class="text-3xl font-bold" id="ctr">{{ ctr|default('--') }}</p>
+                    <div class="flex items-baseline">
+                        <p class="text-3xl font-bold" id="ctr">{{ ctr|default('--') }}</p>
+                        <p class="ml-2 text-sm" id="ctr-mom"></p>
+                    </div>
                 </div>
                 <!-- CPC -->
                 <div class="bg-gray-800 p-6 rounded-lg">
                     <h3 class="text-yellow-500 text-sm mb-2">CPC ($)</h3>
-                    <p class="text-3xl font-bold" id="cpc">{{ cpc|default('--') }}</p>
+                    <div class="flex items-baseline">
+                        <p class="text-3xl font-bold" id="cpc">{{ cpc|default('--') }}</p>
+                        <p class="ml-2 text-sm" id="cpc-mom"></p>
+                    </div>
                 </div>
                 <!-- 发起结账数 -->
                 <div class="bg-gray-800 p-6 rounded-lg">
                     <h3 class="text-yellow-500 text-sm mb-2">发起结账数</h3>
-                    <p class="text-3xl font-bold" id="begin_checkout">{{ begin_checkout|default('--') }}</p>
+                    <div class="flex items-baseline">
+                        <p class="text-3xl font-bold" id="begin_checkout">{{ begin_checkout|default('--') }}</p>
+                        <p class="ml-2 text-sm" id="begin_checkout-mom"></p>
+                    </div>
                 </div>
             </div>
 
